@@ -27,7 +27,7 @@ exports.searchStudents = async (req, res) => {
 
 exports.createClass = async (req, res) => {
     try {
-        console.log("hit")
+       
         const { name, semester, section, subject, subjectCode } = req.body;
         const teacher = await Teacher.findOne({ name });
 
@@ -83,28 +83,114 @@ exports.addAssignment = async (req, res) => {
 
 exports.addStudentToClass = async (req, res) => {
     try {
-        const { classId, studentName } = req.body;
+        const { classId, studentNames } = req.body;
         const targetClass = await Class.findById(classId);
 
         if (!targetClass) {
             return res.status(404).json({ error: 'Class not found' });
         }
 
-        const student = await Student.findOne({ name: studentName });
+        for (const studentName of studentNames) {
+            const student = await Student.findOne({ name: studentName });
 
-        if (!student) {
-            return res.status(404).json({ error: 'Student not found' });
+            if (!student) {
+                console.error(`Student "${studentName}" not found`);
+                continue; // Skip adding this student and proceed with the next one
+            }
+
+            // Check if the student already exists in the class based on object ID
+            const existingStudent = targetClass.students.find(student => student.equals(student._id));
+            if (existingStudent) {
+                console.error(`Student "${studentName}" is already in the class`);
+                return res.status(400).json({ error: `Student "${studentName}" is already in the class` });
+                // continue; // Skip adding this student and proceed with the next one
+            }
+
+            targetClass.students.push(student);
         }
 
-        targetClass.students.push(student);
         await targetClass.save();
 
-        res.json(targetClass);
+        return res.json(targetClass);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+
+
+exports.removeStudentFromClass = async (req, res) => {
+    try {
+        const { classId, studentId } = req.body;
+
+        // Find the target class
+        const targetClass = await Class.findById(classId);
+        if (!targetClass) {
+            return res.status(404).json({ error: 'Class not found' });
+        }
+
+        // Check if the student exists in the class
+        const studentIndex = targetClass.students.findIndex(s => s.equals(studentId));
+        if (studentIndex === -1) {
+            console.error(`Student with ID "${studentId}" is not in the class`);
+            return res.status(400).json({ error: `Student with ID "${studentId}" is not in the class` });
+        }
+
+        // Remove the student from the class
+        targetClass.students.splice(studentIndex, 1);
+        await targetClass.save();
+
+        // Delete the student object
+        await Student.findByIdAndDelete(studentId);
+
+        return res.json(targetClass);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.removeClass = async (req, res) => {
+    try {
+        const { classId, email } = req.body;
+
+        // Find the target class
+        const targetClass = await Class.findById(classId);
+        if (!targetClass) {
+            return res.status(404).json({ error: 'Class not found' });
+        }
+
+        // Find the teacher by email
+        const teacher = await Teacher.findOne({ email: email });
+        if (!teacher) {
+            return res.status(404).json({ error: 'Teacher not found' });
+        }
+
+        // Remove the class from the teacher's classes array
+        const classIndex = teacher.classes.findIndex(c => c.equals(classId));
+        if (classIndex === -1) {
+            console.error(`Class with ID "${classId}" is not associated with teacher`);
+            return res.status(400).json({ error: `Class with ID "${classId}" is not associated with teacher` });
+        }
+        teacher.classes.splice(classIndex, 1);
+
+        // Save the updated teacher
+        await teacher.save();
+
+        // Delete the class object
+        await Class.findByIdAndDelete(classId);
+
+        return res.json(teacher);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+
+
+
 
 exports.viewClasses = async (req, res) => {
     try {
@@ -124,16 +210,30 @@ exports.viewClasses = async (req, res) => {
 
 exports.viewAssignments = async (req, res) => {
     try {
-        const { classId } = req.params;
-        const targetClass = await Class.findById(classId).populate('assignments');
-
-        if (!targetClass) {
-            return res.status(404).json({ error: 'Class not found' });
-        }
-
-        res.json(targetClass.assignments);
+      const { emailid } = req.params;
+  
+      // Find the student document by email to get its ObjectId
+      const teacher = await Teacher.findOne({ email: emailid });
+      if (!teacher) {
+        return res.status(404).json({ error: "Teacher not found" });
+      }
+      const teacherId = teacher._id;
+  
+      // Find the class(es) in which the student is enrolled
+      const classes = await Class.find({ teacher: teacherId });
+  
+      // Collect the IDs of these classes
+      const classIds = classes.map(classData => classData._id);
+  
+      // Find all assignments where the class ID exists in the classIds array
+      const assignments = await Assignment.find({ class: { $in: classIds } }).populate({
+        path: 'class',
+        select: 'subjectCode'
+      });
+  
+      res.json(assignments);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+      console.error(error);
+      res.status(500).json({ error: "Internal Server Error" });
     }
-};
+  };

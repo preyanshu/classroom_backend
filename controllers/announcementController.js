@@ -1,6 +1,8 @@
 // controllers/announcementController.js
 const Announcement = require('../models/Announcement');
 const Class = require('../models/Class');
+const Student = require('../models/Student');
+const Teacher = require('../models/Teacher');
 
 exports.addAnnouncement = async (req, res) => {
     try {
@@ -39,6 +41,67 @@ exports.viewAnnouncements = async (req, res) => {
         }
 
         res.json(targetClass.announcements);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.viewAnnouncementsall = async (req, res) => {
+    try {
+        const { emailid } = req.body;
+
+        // Step 1: Find the student based on the provided email ID
+        console.log(emailid);
+        const student = await Student.findOne({email: emailid });
+
+        if (!student) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+
+        // Step 2: Retrieve all classes in which the student is enrolled
+        const targetClasses = await Class.find({ students: student._id }).populate({
+            path: 'announcements',
+            populate: {
+                path: 'class',
+                select: 'subjectCode'
+            }
+        });
+
+        // Step 3: Extract announcements from each class
+        const allAnnouncements = targetClasses.flatMap(cls => cls.announcements);
+
+        res.json(allAnnouncements);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+exports.viewAnnouncementsallteacher = async (req, res) => {
+    try {
+        const { emailid } = req.body;
+
+        // Step 1: Find the student based on the provided email ID
+        console.log(emailid);
+        const teacher = await Teacher.findOne({email: emailid });
+
+        if (!teacher) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+
+        // Step 2: Retrieve all classes in which the student is enrolled
+        const targetClasses = await Class.find({ teacher: teacher._id }).populate({
+            path: 'announcements',
+            populate: {
+                path: 'class',
+                select: 'subjectCode'
+            }
+        });
+
+        // Step 3: Extract announcements from each class
+        const allAnnouncements = targetClasses.flatMap(cls => cls.announcements);
+
+        res.json(allAnnouncements);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal Server Error' });

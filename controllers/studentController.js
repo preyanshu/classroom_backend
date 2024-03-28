@@ -36,18 +36,34 @@ exports.submitAssignment = async (req, res) => {
 };
 
 exports.viewAssignments = async (req, res) => {
-  try {
-    const { classId } = req.params;
-    const targetClass = await Class.findById(classId).populate("assignments");
-    if (!targetClass) {
-      return res.status(404).json({ error: "Class not found" });
+    try {
+      const { emailid } = req.params;
+  
+      // Find the student document by email to get its ObjectId
+      const student = await Student.findOne({ email: emailid });
+      if (!student) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+      const studentId = student._id;
+  
+      // Find the class(es) in which the student is enrolled
+      const classes = await Class.find({ students: studentId });
+  
+      // Collect the IDs of these classes
+      const classIds = classes.map(classData => classData._id);
+  
+      // Find all assignments where the class ID exists in the classIds array
+      const assignments = await Assignment.find({ class: { $in: classIds } }).populate({
+        path: 'class',
+        select: 'subjectCode'
+      });
+  
+      res.json(assignments);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal Server Error" });
     }
-    res.json(targetClass.assignments);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-};
+  };
 
 exports.updateStudentInfo = async (req, res) => {
     try {
