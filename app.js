@@ -1,3 +1,4 @@
+// Import required modules
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
@@ -6,13 +7,11 @@ dotenv.config();
 main().catch((err) => console.error(err));
 const cors = require('cors');
 
-// const app = express();
-
-// Enable all CORS requests
-
-
+// Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Enable CORS
 app.use(cors());
 
 // MongoDB Connection
@@ -26,7 +25,7 @@ async function main() {
     } catch (error) {
       console.error("Error connecting to MongoDB:", error);
     }
-  }
+}
 
 // Middleware
 app.use(bodyParser.json());
@@ -38,10 +37,16 @@ const studentRoutes = require('./routes/studentRoutes');
 const authRoutes = require('./routes/authRoutes');
 const protectedRoutes = require('./routes/protectedRoutes');
 
+// Mount routes
 app.use('/teacher', teacherRoutes);
 app.use('/student', studentRoutes);
 app.use('/auth', authRoutes);
 app.use('/protected', protectedRoutes);
+
+//homepage
+app.get('/', (req, res) => {
+    res.json({ message: 'Welcome to the homepage' });
+});
 
 // Start the server
 app.listen(port, () => {
